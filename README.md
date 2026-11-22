@@ -42,7 +42,11 @@ Apri il link, entra con Google, poi **Condividi → Aggiungi a Home** (iPhone) o
 ## Uso
 - **🛒 Spesa**: scrivi cosa serve e quanto. Al supermercato premi **✓ Comprato**, scegli quante ne hai
   prese e finiscono direttamente nel frigo. Sopra trovi i suggerimenti degli alimenti finiti/quasi finiti.
-- **🧊 Frigo**: `+` / `−` quando usate o aggiungete qualcosa. "Pochi se ≤" decide quando un alimento
+- **Negozio**: quando aggiungi alla spesa puoi scegliere Esselunga o Lidl (o "ovunque") e scrivere il
+  prodotto preciso. Viene ricordato: la volta dopo lo ritrovi tra i "prodotti già scelti" di quel negozio.
+  "🔍 Cerca" apre una ricerca sul sito del negozio. La lista è divisa per negozio.
+  Per aggiungere altri negozi: modifica `STORES` in cima a `spesa/app.js`.
+- **🧊 Frigo / 🏠 Casa**: `+` / `−` quando usate o aggiungete qualcosa. "Pochi se ≤" decide quando un alimento
   diventa giallo (es. Uova → 2). Con ✎ modifichi nome, unità, soglia o elimini.
 
 > Nota: i valori in `config.js` non sono segreti (Firebase è fatto così), quindi va bene anche se

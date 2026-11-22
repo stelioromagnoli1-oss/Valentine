@@ -40,7 +40,7 @@ header{position:sticky;top:0;z-index:5;background:var(--red);color:#fff;padding:
 .top .who{font-size:12px;opacity:.85;display:flex;align-items:center;gap:8px}
 .top .who button{background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:999px;padding:4px 10px;cursor:pointer}
 .tabs{display:flex;gap:4px;margin-top:10px}
-.tab{flex:1;background:transparent;border:none;color:#fff;opacity:.7;padding:10px;font-weight:700;cursor:pointer;
+.tab{flex:1;white-space:nowrap;background:transparent;border:none;color:#fff;opacity:.7;padding:10px 4px;font-weight:700;cursor:pointer;
   border-bottom:3px solid transparent}
 .tab.active{opacity:1;border-bottom-color:#fff}
 .badge{display:inline-block;min-width:20px;padding:1px 6px;border-radius:999px;background:#fff;color:var(--red);font-size:12px;margin-left:4px}
@@ -99,6 +99,17 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#333;color:#fff;
   padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
 #toast.show{opacity:1}
+
+.mt{margin-top:12px}
+.store-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;color:#fff;margin-left:4px;vertical-align:middle}
+.storebox{margin-top:10px;padding:12px;border-radius:12px;background:#faf6f7;border:1px dashed var(--border)}
+.sugg button.pick{border-style:solid}
+.sugg button.pick.active{background:var(--text);color:#fff;border-color:var(--text)}
+.group-h{display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px;font-weight:800}
+.group-h a{font-size:13px;font-weight:600;color:var(--red);text-decoration:none}
+a.btn{text-decoration:none;display:inline-flex;align-items:center}
+select{border:1px solid #ddd;border-radius:10px;padding:10px 12px;background:#fff;width:100%}
+.submit-row{display:flex;justify-content:flex-end;margin-top:12px}
 </style>
 </head>
 <body>
@@ -122,6 +133,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <nav class="tabs">
       <button class="tab active" data-tab="spesa">🛒 Spesa <span class="badge" id="listBadge">0</span></button>
       <button class="tab" data-tab="frigo">🧊 Frigo</button>
+      <button class="tab" data-tab="casa">🏠 Casa</button>
     </nav>
   </header>
 
@@ -130,11 +142,33 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     <section id="tab-spesa">
       <form class="panel" id="addListForm" autocomplete="off">
         <h2>Aggiungi alla lista della spesa</h2>
+
+        <label class="lab">A) Prodotto e quantità</label>
         <div class="row">
           <input class="grow" type="text" id="listName" placeholder="Es. Latte" list="itemNames" required>
           <input class="qty" type="number" id="listQty" placeholder="Q.tà" min="0" step="any" value="1">
-          <button class="btn" type="submit">Aggiungi</button>
         </div>
+
+        <label class="lab mt">Dove va?</label>
+        <div class="chips" id="placeChips">
+          <button type="button" class="chip active" data-place="frigo">🧊 Frigo</button>
+          <button type="button" class="chip" data-place="casa">🏠 Casa</button>
+        </div>
+
+        <label class="lab mt">B) Vuoi scegliere il negozio?</label>
+        <div class="chips" id="storeChips"></div>
+
+        <div id="storeBox" class="storebox hidden">
+          <label class="lab">C) Prodotti <b id="storeName"></b> già scelti da voi</label>
+          <div class="sugg" id="catalogChips"></div>
+          <label class="lab mt">…oppure scrivi il prodotto preciso</label>
+          <div class="row">
+            <input class="grow" type="text" id="listProduct" placeholder="Es. Latte parzialmente scremato 1 L">
+            <a class="btn small secondary" id="storeSearch" target="_blank" rel="noopener">🔍 Cerca</a>
+          </div>
+        </div>
+
+        <div class="submit-row"><button class="btn" type="submit">Aggiungi alla lista</button></div>
       </form>
 
       <div class="panel" id="suggPanel">
@@ -143,15 +177,15 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
       </div>
 
       <div>
-        <h2 style="font-size:16px;margin:4px 0 8px">Da comprare</h2>
-        <div class="list" id="shoppingList"></div>
+        <h2 style="font-size:16px;margin:4px 0 0">Da comprare</h2>
+        <div id="shoppingList"></div>
       </div>
     </section>
 
-    <!-- ======== TAB FRIGO ======== -->
-    <section id="tab-frigo" class="hidden">
-      <form class="panel" id="addFridgeForm" autocomplete="off">
-        <h2>Aggiungi un alimento al frigo</h2>
+    <!-- ======== TAB FRIGO / CASA (stessa vista) ======== -->
+    <section id="tab-inv" class="hidden">
+      <form class="panel" id="addInvForm" autocomplete="off">
+        <h2 id="invTitle">Aggiungi un alimento al frigo</h2>
         <div class="row">
           <div class="grow"><label class="lab">Nome</label><input type="text" id="fName" placeholder="Es. Uova" list="itemNames" required></div>
           <div class="qty"><label class="lab">Quantità</label><input type="number" id="fQty" min="0" step="any" value="1"></div>
@@ -164,7 +198,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
       </form>
 
       <div class="row" style="align-items:center">
-        <input class="grow" type="search" id="search" placeholder="🔍 Cerca nel frigo…">
+        <input class="grow" type="search" id="search" placeholder="🔍 Cerca…">
       </div>
       <div class="chips" id="filters">
         <button class="chip active" data-f="all">Tutti</button>
@@ -173,7 +207,7 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
         <button class="chip" data-f="out"><span class="dot out"></span>Finiti <span id="cOut"></span></button>
       </div>
 
-      <div class="list" id="fridgeList"></div>
+      <div class="list" id="invList"></div>
     </section>
   </main>
 </div>
@@ -192,23 +226,29 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     </div>
     <div class="btns">
       <button class="btn secondary" value="cancel" formnovalidate>Annulla</button>
-      <button class="btn" value="ok" id="buyOk">Metti in frigo</button>
+      <button class="btn" value="ok" id="buyOk">Metti via</button>
     </div>
   </form>
 </dialog>
 
-<!-- Dialog: modifica alimento -->
+<!-- Dialog: modifica -->
 <dialog id="editDialog">
   <form method="dialog" id="editForm">
-    <h3>Modifica alimento</h3>
+    <h3>Modifica</h3>
     <div class="field"><label class="lab">Nome</label><input type="text" id="eName" required></div>
     <div class="row field">
       <div class="qty"><label class="lab">Quantità</label><input type="number" id="eQty" min="0" step="any"></div>
       <div class="unit"><label class="lab">Unità</label><input type="text" id="eUnit"></div>
       <div class="qty"><label class="lab">"Pochi" se ≤</label><input type="number" id="eLow" min="0" step="any"></div>
     </div>
+    <div class="row field">
+      <div class="grow"><label class="lab">Dove sta</label>
+        <select id="ePlace"><option value="frigo">🧊 Frigo</option><option value="casa">🏠 Casa</option></select></div>
+      <div class="grow"><label class="lab">Negozio preferito</label><select id="eStore"></select></div>
+    </div>
+    <div class="field"><label class="lab">Prodotto preciso</label><input type="text" id="eProduct" placeholder="(facoltativo)"></div>
     <div class="btns">
-      <button class="btn secondary" value="delete" id="eDelete" formnovalidate style="margin-right:auto;background:var(--out-bg);color:var(--out)">Elimina</button>
+      <button class="btn secondary" value="delete" formnovalidate style="margin-right:auto;background:var(--out-bg);color:var(--out)">Elimina</button>
       <button class="btn secondary" value="cancel" formnovalidate>Annulla</button>
       <button class="btn" value="ok">Salva</button>
     </div>
