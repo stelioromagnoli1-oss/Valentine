@@ -51,3 +51,8 @@ Apri il link, entra con Google, poi **Condividi → Aggiungi a Home** (iPhone) o
 
 > Nota: i valori in `config.js` non sono segreti (Firebase è fatto così), quindi va bene anche se
 > il repository è pubblico. La sicurezza la fanno le regole di Firestore.
+
+## Aggiornare il codice
+Quando modifichi i file in `spesa/`, aumenta il numero `?v=` (in `index.html` e nei due `import` in cima
+a `app.js`): così i telefoni scaricano subito la versione nuova invece di usare quella in memoria.
+I suggerimenti automatici dei prodotti sono in `spesa/products.js`.

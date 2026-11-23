@@ -7,7 +7,9 @@ import {
   initializeFirestore, persistentLocalCache, collection, doc, addDoc, updateDoc, setDoc,
   deleteDoc, onSnapshot, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, ALLOWED_EMAILS } from "./config.js";
+// "?v=N": quando cambi il codice aumenta N qui e in index.html, così i telefoni scaricano subito la versione nuova
+import { firebaseConfig, ALLOWED_EMAILS } from "./config.js?v=4";
+import { PRODUCTS, POPULAR } from "./products.js?v=4";
 
 // ---------- Negozi e sezioni ----------
 // Per aggiungere un negozio basta aggiungere una riga qui.
@@ -156,7 +158,6 @@ document.querySelectorAll(".tab").forEach((b) => {
 
 // ---------- Render ----------
 function render() {
-  $("itemNames").innerHTML = items.map((i) => `<option value="${esc(i.name)}">`).join("");
   renderShopping();
   renderInventory();
   renderStoreBox();
@@ -288,15 +289,82 @@ function renderStoreBox() {
   $("storeSearch").href = searchUrl(formStore, $("listProduct").value || $("listName").value);
 }
 
-$("listName").addEventListener("input", () => {
-  const ex = findByName($("listName").value);
+// ---------- Suggerimenti automatici (scrivi "p" → patate, pasta, pane…) ----------
+function suggest(q, preferPlace) {
+  q = norm(q);
+  if (!q) return [];
+  const seen = new Set();
+  const pool = [];
+  items.forEach((i) => { seen.add(i.nameLower); pool.push({ name: i.name, place: placeOf(i), item: i }); });
+  PRODUCTS.forEach((p) => { const k = norm(p.name); if (!seen.has(k)) { seen.add(k); pool.push(p); } });
+  const score = (p) => {
+    const n = norm(p.name);
+    let s;
+    if (n.startsWith(q)) s = 0;
+    else if (n.split(/\s+/).some((w) => w.startsWith(q))) s = 1;
+    else if (n.includes(q)) s = 2;
+    else return -1;
+    if (!p.item) s += POPULAR.has(n) ? 0.3 : 0.6;       // prima le cose che avete già, poi le più comuni
+    if (preferPlace && p.place !== preferPlace) s += 3; // in Frigo/Casa prima quelli di quella sezione
+    return s;
+  };
+  return pool.map((p) => ({ p, s: score(p) })).filter((x) => x.s >= 0)
+    .sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name, "it"))
+    .slice(0, 10).map((x) => x.p);
+}
+
+function highlight(name, q) {
+  const i = norm(name).indexOf(norm(q));
+  if (i < 0 || !q) return esc(name);
+  return esc(name.slice(0, i)) + "<b>" + esc(name.slice(i, i + q.trim().length)) + "</b>" + esc(name.slice(i + q.trim().length));
+}
+
+function attachAutocomplete(input, box, getPreferPlace, onPick) {
+  let results = [];
+  const hide = () => box.classList.add("hidden");
+  const show = () => {
+    results = suggest(input.value, getPreferPlace());
+    // niente lista se hai già scritto esattamente un nome
+    if (!results.length || (results.length === 1 && norm(results[0].name) === norm(input.value))) return hide();
+    box.innerHTML = results.map((p, idx) => {
+      const where = PLACES[p.place].icon;
+      const hint = p.item ? (p.item.onList ? "già in lista" : `${where} ${fmt(num(p.item.qty))}`) : where;
+      return `<button type="button" data-ac="${idx}"><span>${highlight(p.name, input.value)}</span><span class="hint">${hint}</span></button>`;
+    }).join("");
+    box.classList.remove("hidden");
+  };
+  input.addEventListener("input", show);
+  input.addEventListener("focus", show);
+  input.addEventListener("blur", () => setTimeout(hide, 200));
+  input.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+  // pointerdown così la scelta arriva prima che l'input perda il focus
+  box.addEventListener("pointerdown", (e) => {
+    const b = e.target.closest("[data-ac]");
+    if (!b) return;
+    e.preventDefault();
+    const p = results[+b.dataset.ac];
+    input.value = p.name;
+    hide();
+    onPick(p);
+  });
+}
+
+function onListNameChange() {
+  const name = $("listName").value;
+  const ex = findByName(name);
   if (ex) {
     setPlace(placeOf(ex));
     if (ex.store && STORES[ex.store] && !formStore) { setStore(ex.store); }
     if (ex.product && !$("listProduct").value) $("listProduct").value = ex.product;
+  } else {
+    const p = PRODUCTS.find((x) => norm(x.name) === norm(name));
+    if (p) setPlace(p.place);
   }
   renderStoreBox();
-});
+}
+$("listName").addEventListener("input", onListNameChange);
+attachAutocomplete($("listName"), $("acList"), () => null, () => { onListNameChange(); $("listQty").focus(); $("listQty").select(); });
+attachAutocomplete($("fName"), $("acInv"), () => currentTab, () => { $("fQty").focus(); $("fQty").select(); });
 $("listProduct").addEventListener("input", renderStoreBox);
 $("catalogChips").addEventListener("click", (e) => {
   const b = e.target.closest("[data-pick]");
