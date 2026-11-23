@@ -4,19 +4,14 @@ import {
   onAuthStateChanged, signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  initializeFirestore, persistentLocalCache, collection, doc, addDoc, updateDoc, setDoc,
+  initializeFirestore, persistentLocalCache, collection, doc, addDoc, updateDoc,
   deleteDoc, onSnapshot, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 // "?v=N": quando cambi il codice aumenta N qui e in index.html, così i telefoni scaricano subito la versione nuova
-import { firebaseConfig, ALLOWED_EMAILS } from "./config.js?v=4";
-import { PRODUCTS, POPULAR } from "./products.js?v=4";
+import { firebaseConfig, ALLOWED_EMAILS } from "./config.js?v=5";
+import { PRODUCTS, POPULAR } from "./products.js?v=5";
 
-// ---------- Negozi e sezioni ----------
-// Per aggiungere un negozio basta aggiungere una riga qui.
-const STORES = {
-  esselunga: { name: "Esselunga", color: "#0a5aa8", site: "esselunga.it" },
-  lidl:      { name: "Lidl",      color: "#e8b400", site: "lidl.it" },
-};
+// ---------- Sezioni ----------
 const PLACES = {
   frigo: { name: "Frigo", icon: "🧊", add: "Aggiungi un alimento al frigo", ph: "Es. Uova",
            empty: "Il frigo è vuoto. Aggiungi qualcosa sopra!" },
@@ -30,17 +25,14 @@ const auth = getAuth(fbApp);
 // cache locale: l'app si apre anche con poco segnale al supermercato
 const db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
 const itemsCol = collection(db, "items");
-const catalogCol = collection(db, "catalog"); // prodotti precisi salvati per negozio
 
 // ---------- Stato ----------
 let items = [];
-let catalog = [];
 let user = null;
 let unsubs = [];
 let currentTab = "spesa";
 let invFilter = "all";
 let formPlace = "frigo";
-let formStore = "";
 
 // ---------- Utility ----------
 const $ = (id) => document.getElementById(id);
@@ -51,7 +43,6 @@ const fmt = (n) => (Math.round(n * 100) / 100).toString().replace(".", ",");
 const norm = (s) => String(s || "").trim().toLowerCase();
 const cap = (s) => s.trim().charAt(0).toUpperCase() + s.trim().slice(1);
 const placeOf = (it) => (it.place === "casa" ? "casa" : "frigo");
-const slug = (s) => norm(s).replace(/[^a-z0-9àèéìòù]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 
 function status(it) {
   const q = num(it.qty), low = num(it.low, 1);
@@ -61,11 +52,6 @@ function status(it) {
 }
 const qtyText = (q, unit) => `${fmt(num(q))}${unit ? " " + esc(unit) : ""}`;
 const findByName = (name) => items.find((i) => i.nameLower === norm(name));
-const storeTag = (key) => STORES[key]
-  ? `<span class="store-tag" style="background:${STORES[key].color}">${esc(STORES[key].name)}</span>` : "";
-const searchUrl = (store, q) =>
-  "https://www.google.com/search?q=" + encodeURIComponent(`${q || ""} site:${STORES[store].site}`.trim());
-
 let toastTimer;
 function toast(msg) {
   const t = $("toast");
@@ -82,14 +68,6 @@ async function save(id, data) {
   try { await updateDoc(doc(db, "items", id), stamp(data)); }
   catch (e) { console.error(e); toast("Errore: " + e.message); }
 }
-async function rememberProduct(store, base, label) {
-  if (!store || !label) return;
-  const id = `${store}_${slug(label)}`;
-  try {
-    await setDoc(doc(db, "catalog", id), stamp({ store, base: norm(base), label, labelLower: norm(label) }));
-  } catch (e) { console.error(e); }
-}
-
 // ---------- Login ----------
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
@@ -132,10 +110,6 @@ onAuthStateChanged(auth, async (u) => {
     items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     render();
   }, onErr));
-  unsubs.push(onSnapshot(catalogCol, (snap) => {
-    catalog = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderStoreBox();
-  }, onErr));
 });
 
 // ---------- Tabs ----------
@@ -160,7 +134,6 @@ document.querySelectorAll(".tab").forEach((b) => {
 function render() {
   renderShopping();
   renderInventory();
-  renderStoreBox();
 }
 
 function shoppingRow(i) {
@@ -171,7 +144,6 @@ function shoppingRow(i) {
       <span class="dot ${st}" title="${P.name}: ${qtyText(i.qty, i.unit)}"></span>
       <div class="info">
         <div class="name">${esc(i.name)}</div>
-        ${i.product ? `<div class="meta">👉 ${esc(i.product)}</div>` : ""}
         <div class="meta">Da prendere: <b>${qtyText(i.listQty || 1, i.unit)}</b> · ${P.icon} ${qtyText(i.qty, i.unit)}</div>
       </div>
       <div class="actions">
@@ -185,19 +157,9 @@ function renderShopping() {
   const list = items.filter((i) => i.onList).sort((a, b) => a.nameLower.localeCompare(b.nameLower));
   $("listBadge").textContent = list.length;
 
-  if (!list.length) {
-    $("shoppingList").innerHTML = `<div class="empty">Lista vuota 🎉</div>`;
-  } else {
-    // raggruppa per negozio: prima i negozi, poi "ovunque"
-    const groups = [...Object.keys(STORES), ""]
-      .map((k) => ({ k, rows: list.filter((i) => (STORES[i.store] ? i.store : "") === k) }))
-      .filter((g) => g.rows.length);
-    $("shoppingList").innerHTML = groups.map((g) => `
-      <div class="group-h">
-        <span>${g.k ? storeTag(g.k) : "🛍️ Ovunque"} <span style="color:var(--muted);font-weight:600">(${g.rows.length})</span></span>
-      </div>
-      <div class="list">${g.rows.map(shoppingRow).join("")}</div>`).join("");
-  }
+  $("shoppingList").innerHTML = list.length
+    ? `<div class="list">${list.map(shoppingRow).join("")}</div>`
+    : `<div class="empty">Lista vuota 🎉</div>`;
 
   const sugg = items.filter((i) => !i.onList && status(i) !== "ok")
     .sort((a, b) => (status(a) === "out" ? 0 : 1) - (status(b) === "out" ? 0 : 1) || a.nameLower.localeCompare(b.nameLower));
@@ -219,7 +181,7 @@ function renderInventory() {
   const q = norm($("search").value);
   const list = mine
     .filter((i) => invFilter === "all" || status(i) === invFilter)
-    .filter((i) => !q || i.nameLower.includes(q) || norm(i.product).includes(q))
+    .filter((i) => !q || i.nameLower.includes(q))
     .sort((a, b) => order[status(a)] - order[status(b)] || a.nameLower.localeCompare(b.nameLower));
 
   $("invList").innerHTML = list.length ? list.map((i) => {
@@ -228,8 +190,8 @@ function renderInventory() {
     return `
     <div class="item ${st}">
       <div class="info">
-        <div class="name">${esc(i.name)} ${i.onList ? "🛒" : ""}${storeTag(i.store)}</div>
-        <div class="meta">${label}${i.unit ? " · " + esc(i.unit) : ""}${i.product ? " · " + esc(i.product) : ""}</div>
+        <div class="name">${esc(i.name)} ${i.onList ? "🛒" : ""}</div>
+        <div class="meta">${label}${i.unit ? " · " + esc(i.unit) : ""}</div>
       </div>
       <div class="actions">
         <button class="icon" data-dec="${i.id}" aria-label="meno">−</button>
@@ -251,43 +213,12 @@ document.querySelectorAll("#filters .chip").forEach((c) => {
   };
 });
 
-// ---------- Form spesa: A) prodotto  B) negozio sì/no  C) prodotti del negozio ----------
-$("storeChips").innerHTML =
-  `<button type="button" class="chip active" data-store="">No, ovunque</button>` +
-  Object.entries(STORES).map(([k, s]) => `<button type="button" class="chip" data-store="${k}">${esc(s.name)}</button>`).join("");
-
+// ---------- Form spesa ----------
 function setPlace(p) {
   formPlace = p;
   document.querySelectorAll("#placeChips .chip").forEach((c) => c.classList.toggle("active", c.dataset.place === p));
 }
-function setStore(s) {
-  formStore = s;
-  document.querySelectorAll("#storeChips .chip").forEach((c) => c.classList.toggle("active", c.dataset.store === s));
-  renderStoreBox();
-}
 document.querySelectorAll("#placeChips .chip").forEach((c) => (c.onclick = () => setPlace(c.dataset.place)));
-document.querySelectorAll("#storeChips .chip").forEach((c) => (c.onclick = () => setStore(c.dataset.store)));
-
-function renderStoreBox() {
-  const box = $("storeBox");
-  box.classList.toggle("hidden", !formStore);
-  if (!formStore) return;
-  const S = STORES[formStore];
-  $("storeName").textContent = S.name;
-  const name = norm($("listName").value);
-  const words = name.split(/\s+/).filter(Boolean);
-  const chosen = norm($("listProduct").value);
-  const prods = catalog
-    .filter((p) => p.store === formStore)
-    .filter((p) => !words.length || p.base === name || words.every((w) => p.labelLower.includes(w)))
-    .sort((a, b) => a.labelLower.localeCompare(b.labelLower))
-    .slice(0, 30);
-  $("catalogChips").innerHTML = prods.length
-    ? prods.map((p) => `<button type="button" class="pick ${p.labelLower === chosen ? "active" : ""}" data-pick="${esc(p.label)}">${esc(p.label)}</button>`).join("")
-    : `<span class="meta" style="color:var(--muted);font-size:13px">Ancora nessuno: scrivilo qui sotto, la prossima volta lo ritrovi qui.</span>`;
-  $("storeSearch").textContent = `🔍 Cerca su ${S.name}`;
-  $("storeSearch").href = searchUrl(formStore, $("listProduct").value || $("listName").value);
-}
 
 // ---------- Suggerimenti automatici (scrivi "p" → patate, pasta, pane…) ----------
 function suggest(q, preferPlace) {
@@ -321,8 +252,10 @@ function highlight(name, q) {
 
 function attachAutocomplete(input, box, getPreferPlace, onPick) {
   let results = [];
+  let hideTimer;
   const hide = () => box.classList.add("hidden");
   const show = () => {
+    clearTimeout(hideTimer);
     results = suggest(input.value, getPreferPlace());
     // niente lista se hai già scritto esattamente un nome
     if (!results.length || (results.length === 1 && norm(results[0].name) === norm(input.value))) return hide();
@@ -335,7 +268,7 @@ function attachAutocomplete(input, box, getPreferPlace, onPick) {
   };
   input.addEventListener("input", show);
   input.addEventListener("focus", show);
-  input.addEventListener("blur", () => setTimeout(hide, 200));
+  input.addEventListener("blur", () => { hideTimer = setTimeout(hide, 200); });
   input.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
   // pointerdown così la scelta arriva prima che l'input perda il focus
   box.addEventListener("pointerdown", (e) => {
@@ -354,48 +287,33 @@ function onListNameChange() {
   const ex = findByName(name);
   if (ex) {
     setPlace(placeOf(ex));
-    if (ex.store && STORES[ex.store] && !formStore) { setStore(ex.store); }
-    if (ex.product && !$("listProduct").value) $("listProduct").value = ex.product;
   } else {
     const p = PRODUCTS.find((x) => norm(x.name) === norm(name));
     if (p) setPlace(p.place);
   }
-  renderStoreBox();
 }
 $("listName").addEventListener("input", onListNameChange);
 attachAutocomplete($("listName"), $("acList"), () => null, () => { onListNameChange(); $("listQty").focus(); $("listQty").select(); });
 attachAutocomplete($("fName"), $("acInv"), () => currentTab, () => { $("fQty").focus(); $("fQty").select(); });
-$("listProduct").addEventListener("input", renderStoreBox);
-$("catalogChips").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-pick]");
-  if (!b) return;
-  $("listProduct").value = $("listProduct").value === b.dataset.pick ? "" : b.dataset.pick;
-  renderStoreBox();
-});
-
 $("addListForm").onsubmit = async (e) => {
   e.preventDefault();
   const name = $("listName").value.trim();
   if (!name) return;
   const qty = num($("listQty").value, 1) || 1;
-  const store = formStore;
-  const product = store ? $("listProduct").value.trim() : "";
   const existing = findByName(name);
-  const extra = { store, product };
   if (existing) {
     await save(existing.id, {
-      onList: true, listQty: (existing.onList ? num(existing.listQty) : 0) + qty, ...extra,
+      onList: true, listQty: (existing.onList ? num(existing.listQty) : 0) + qty,
     });
   } else {
     await addDoc(itemsCol, stamp({
       name: cap(name), nameLower: norm(name), qty: 0, unit: "", low: 1, place: formPlace,
-      onList: true, listQty: qty, ...extra,
+      onList: true, listQty: qty,
     })).catch((err) => toast("Errore: " + err.message));
   }
-  rememberProduct(store, name, product);
-  toast(`🛒 ${cap(name)} aggiunto${store ? " (" + STORES[store].name + ")" : ""}`);
-  $("listName").value = ""; $("listQty").value = 1; $("listProduct").value = "";
-  setStore(""); setPlace("frigo");
+  toast(`🛒 ${cap(name)} aggiunto alla lista`);
+  $("listName").value = ""; $("listQty").value = 1;
+  setPlace("frigo");
   $("listName").focus();
 };
 
@@ -415,7 +333,7 @@ $("addInvForm").onsubmit = async (e) => {
   } else {
     await addDoc(itemsCol, stamp({
       name: cap(name), nameLower: norm(name), qty, unit, low, place,
-      store: "", product: "", onList: false, listQty: 0,
+      onList: false, listQty: 0,
     })).catch((err) => toast("Errore: " + err.message));
     toast(`${PLACES[place].icon} ${cap(name)} aggiunto`);
   }
@@ -459,9 +377,6 @@ $("buyDialog").addEventListener("close", () => {
 });
 
 // ---------- Dialog "Modifica" ----------
-$("eStore").innerHTML = `<option value="">Nessuno</option>` +
-  Object.entries(STORES).map(([k, s]) => `<option value="${k}">${esc(s.name)}</option>`).join("");
-
 let editing = null;
 function openEdit(it) {
   editing = it;
@@ -470,8 +385,6 @@ function openEdit(it) {
   $("eUnit").value = it.unit || "";
   $("eLow").value = num(it.low, 1);
   $("ePlace").value = placeOf(it);
-  $("eStore").value = STORES[it.store] ? it.store : "";
-  $("eProduct").value = it.product || "";
   $("editDialog").showModal();
 }
 $("editDialog").addEventListener("close", async () => {
@@ -480,14 +393,11 @@ $("editDialog").addEventListener("close", async () => {
   if (!it) return;
   if (v === "ok") {
     const name = $("eName").value.trim() || it.name;
-    const store = $("eStore").value;
-    const product = $("eProduct").value.trim();
     save(it.id, {
       name: cap(name), nameLower: norm(name),
       qty: Math.max(0, num($("eQty").value)), unit: $("eUnit").value.trim(), low: Math.max(0, num($("eLow").value, 1)),
-      place: $("ePlace").value, store, product,
+      place: $("ePlace").value,
     });
-    rememberProduct(store, name, product);
   } else if (v === "delete") {
     if (confirm(`Eliminare "${it.name}" per sempre?`)) {
       await deleteDoc(doc(db, "items", it.id)).catch((err) => toast("Errore: " + err.message));

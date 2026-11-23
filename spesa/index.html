@@ -101,12 +101,6 @@ dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 #toast.show{opacity:1}
 
 .mt{margin-top:12px}
-.store-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;color:#fff;margin-left:4px;vertical-align:middle}
-.storebox{margin-top:10px;padding:12px;border-radius:12px;background:#faf6f7;border:1px dashed var(--border)}
-.sugg button.pick{border-style:solid}
-.sugg button.pick.active{background:var(--text);color:#fff;border-color:var(--text)}
-.group-h{display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px;font-weight:800}
-.group-h a{font-size:13px;font-weight:600;color:var(--red);text-decoration:none}
 a.btn{text-decoration:none;display:inline-flex;align-items:center}
 select{border:1px solid #ddd;border-radius:10px;padding:10px 12px;background:#fff;width:100%}
 .submit-row{display:flex;justify-content:flex-end;margin-top:12px}
@@ -151,7 +145,7 @@ select{border:1px solid #ddd;border-radius:10px;padding:10px 12px;background:#ff
       <form class="panel" id="addListForm" autocomplete="off">
         <h2>Aggiungi alla lista della spesa</h2>
 
-        <label class="lab">A) Prodotto e quantità</label>
+        <label class="lab">Prodotto e quantità</label>
         <div class="row">
           <input class="grow" type="text" id="listName" placeholder="Es. Latte" required>
           <input class="qty" type="number" id="listQty" placeholder="Q.tà" min="0" step="any" value="1">
@@ -162,19 +156,6 @@ select{border:1px solid #ddd;border-radius:10px;padding:10px 12px;background:#ff
         <div class="chips" id="placeChips">
           <button type="button" class="chip active" data-place="frigo">🧊 Frigo</button>
           <button type="button" class="chip" data-place="casa">🏠 Casa</button>
-        </div>
-
-        <label class="lab mt">B) Vuoi scegliere il negozio?</label>
-        <div class="chips" id="storeChips"></div>
-
-        <div id="storeBox" class="storebox hidden">
-          <label class="lab">C) Prodotti <b id="storeName"></b> già scelti da voi</label>
-          <div class="sugg" id="catalogChips"></div>
-          <label class="lab mt">…oppure scrivi il prodotto preciso</label>
-          <div class="row">
-            <input class="grow" type="text" id="listProduct" placeholder="Es. Latte parzialmente scremato 1 L">
-            <a class="btn small secondary" id="storeSearch" target="_blank" rel="noopener">🔍 Cerca</a>
-          </div>
         </div>
 
         <div class="submit-row"><button class="btn" type="submit">Aggiungi alla lista</button></div>
@@ -253,9 +234,7 @@ select{border:1px solid #ddd;border-radius:10px;padding:10px 12px;background:#ff
     <div class="row field">
       <div class="grow"><label class="lab">Dove sta</label>
         <select id="ePlace"><option value="frigo">🧊 Frigo</option><option value="casa">🏠 Casa</option></select></div>
-      <div class="grow"><label class="lab">Negozio preferito</label><select id="eStore"></select></div>
     </div>
-    <div class="field"><label class="lab">Prodotto preciso</label><input type="text" id="eProduct" placeholder="(facoltativo)"></div>
     <div class="btns">
       <button class="btn secondary" value="delete" formnovalidate style="margin-right:auto;background:var(--out-bg);color:var(--out)">Elimina</button>
       <button class="btn secondary" value="cancel" formnovalidate>Annulla</button>
@@ -266,6 +245,6 @@ select{border:1px solid #ddd;border-radius:10px;padding:10px 12px;background:#ff
 
 <div id="toast"></div>
 
-<script type="module" src="app.js?v=4"></script>
+<script type="module" src="app.js?v=5"></script>
 </body>
 </html>
